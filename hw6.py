@@ -11,7 +11,7 @@ class Levels(Enum):
 class Vessel:
     """A Vessel class for some defaults of all Vessel sub-classes.
     Creates a Vessel repr defined by its vname and ind.
-    Attributes: ind.
+    Attributes: ind, vname, kill.
     Methods: assert_vessel, rotate, under_fire.
     """
     
@@ -23,7 +23,7 @@ class Vessel:
     def __repr__(self):
         return f'{self.vname}{self.ind}'   
     
-    def assert_vessel(self):
+    def assert_vessel(self) -> None:
         """Results in error if a vessel in dict{available_vessels} is not 
         defined as a Vessel (sub-)class
         """
