@@ -18,6 +18,7 @@ class Vessel:
     def __init__(self, ind: int):
         self.ind = ind+1
         self.vname = 'vessel'
+        # A Vessel does not store its place on board. If needed, a line should be added to Board._place_vessel().
         
     def __repr__(self):
         return f'{self.vname}{self.ind}'   
@@ -83,7 +84,7 @@ class Jet(Vessel):
     def __init__(self, ind: int):
         super().__init__(ind)
         self.level = Levels.Air.value
-        self.vshape = np.array ([[0,1,0],
+        self.vshape = np.array([[0,1,0],
                                 [1,1,1],
                                 [0,1,0],
                                 [0,1,0]], dtype=bool)
@@ -119,12 +120,13 @@ class Board:
     Methods: _available_vessels, _populate_board, _place_vessel, _validate_target, _fire.
     """
     
-    def __init__(self, player_id: int = 0, dim: tuple = (4, 4, 3)):
+    def __init__(self, player_id: int = 0, dim: tuple = (4, 4, 3), 
+                board_vessels = {Submarine: 1, Destroyer: 1, Jet: 1, General: 1}):
         self.player_id = player_id
         self.rows, self.columns, self.levels = dim
         assert self.levels == 3, 'Board levels must be 3.'
         assert (self.rows >= 4 and self.columns >= 4), 'Board is too small for its vessels (min 4x4).'
-        self.vessels = self._available_vessels(available_vessels)
+        self.vessels = self._available_vessels(board_vessels)
         self._populate_board()
         
     def __str__(self):
@@ -133,18 +135,19 @@ class Board:
                     \n{Levels(2).name}:\n{self.board[:,:,2]}
                 """)
     
-    def _available_vessels(self, av_ves: dict = {Submarine: 1, Destroyer: 1, Jet: 1, General: 1}) -> dict:
+    def _available_vessels(self, av_ves: dict) -> dict:
         """Triggered by Board.__init__().
         Defines and asserts the type of vessels for a game.
         Asserts only one general is defined. If there are too many vessels of \
         any other type, the func _populate_board() would raise an exception.
         """
+        assert type(av_ves)==dict, 'board_vessels should be a dictionary'
+        assert General in av_ves and av_ves[General] == 1, 'You should have 1 general.'
         for ves in av_ves:
             try:
                 ves.assert_vessel
             except (NameError, AttributeError):
                 raise Exception(f'{ves} is not a Vessel object.')
-        assert av_ves[General] == 1, 'More than one general is most inadvisable!'
         return av_ves
 
     def _populate_board(self) -> None:
@@ -174,6 +177,7 @@ class Board:
             if not vslice.any():
                 try:
                     vslice[v.vshape]=v
+                    # v.vplace = rand_co # if uncommented, a Vessel would store its ref point on board.
                     break
                 except Exception:
                     pass
@@ -186,7 +190,7 @@ class Board:
             # too much and an error is raised. Tested and works fine. #
             ###########################################################
             if trial > self.rows*self.columns:
-                raise Exception(
+                raise AssertionError(
                     f'{Levels(v.level).name} seems to be too crowded. Board is too small for so many vessels.')
 
     def _validate_target(self, player_input) -> Union[bool, str]:
@@ -231,7 +235,8 @@ def start() -> None:
     Asks for player's input, switch players after a valid target.
     Accpets show (and hide) and quit commands.
     """
-    boards = {'Board_1': Board(player_id=1, dim=board_dim), 'Board_2': Board(player_id=2, dim=board_dim)}
+    boards = {'Board_1': Board(player_id=1, dim=board_dim, board_vessels=available_vessels), 
+                'Board_2': Board(player_id=2, dim=board_dim, board_vessels=available_vessels)}
     print(f"""Welcome to another game of Submarines!\n\
             \nThe shape of the board is {boards['Board_1'].board.shape}.\
             \nYou can type show to show your board (and hide to hide it), or \
@@ -263,7 +268,6 @@ def start() -> None:
                     i = 1 if i==2 else 2
                     j = 1 if i==2 else 2
                     
-
 if __name__ == "__main__":
     board_dim = (4,4,3)
     available_vessels = {Submarine: 1, Destroyer: 1, Jet: 1, General: 1}
