@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.random import randint
 from enum import Enum
+from typing import Union
 
 class Levels(Enum):
     Deep = 0
@@ -8,32 +9,37 @@ class Levels(Enum):
     Air = 2
 
 class Vessel:
-    """A Vessel class for some defaults of all Vessel sub-classes.\n
-    Attributes: ind.\n
-    Methods: rotate, under_fire.
+    """A Vessel class for some defaults of all Vessel sub-classes.
+    Creates a Vessel repr defined by its vname and ind.
+    Attributes: ind.
+    Methods: assert_vessel, rotate, under_fire.
     """
     
     def __init__(self, ind: int):
         self.ind = ind+1
+        self.vname = 'vessel'
         
     def __repr__(self):
         return f'{self.vname}{self.ind}'   
     
     def assert_vessel(self):
+        """Results in error if a vessel in dict{available_vessels} is not 
+        defined as a Vessel (sub-)class
+        """
         pass
     
-    def rotate(self):
-        """Rotates the vessel"""
+    def rotate(self) -> None:
+        """Changes vessel orientation"""
         self.vshape = np.rot90(self.vshape,3)
 
-    def under_fire(self):
-        """Default vessel behavior when targeted - KILL."""
+    def under_fire(self) -> bool:
+        """Default vessel behavior when targeted (signal.KILL)."""
         self.kill = True
         print('signal.KILL')
         return self.kill
 
 class Submarine(Vessel):
-    """A submarine class, includes the submarine shape, and name for repr.\n
+    """A submarine class, includes the submarine shape, and vname for repr.
     Attributes: ind, level, vshape, vname, kill.
     """
     
@@ -46,8 +52,8 @@ class Submarine(Vessel):
         self.vname = 'submarine'
 
 class Destroyer(Vessel):
-    """A destroyer class, includes the destroyer shape, and name for repr.\n
-    Attributes: ind, level, vshape, vname, kill.\n
+    """A destroyer class, includes the destroyer shape, and vname for repr.
+    Attributes: ind, level, vshape, vname, kill.
     Methods: under_fire.
     """
     
@@ -60,15 +66,17 @@ class Destroyer(Vessel):
         self.vname = 'destroyer'
         self.hit = 0
         
-    def under_fire(self):
-        """Destroyer is destroyed (signal.KILL) only when fully hit (signal.HIT)."""
+    def under_fire(self) -> bool:
+        """Destroyer is destroyed (signal.KILL) only when fully hit (signal.HIT).
+        Will work with any Vessel/vshape.
+        """
         self.hit +=1
         self.kill = False if self.hit < self.vshape.sum() else True
-        print('signal.HIT' if not self.kill else 'signal.KILL')
+        print('signal.KILL' if self.kill else 'signal.HIT')
         return self.kill
 
 class Jet(Vessel):
-    """A jet class, includes the jet shape, and name for repr.\n
+    """A jet class, includes the jet shape, and vname for repr.
     Attributes: ind, level, vshape, vname, kill.
     """
     
@@ -84,8 +92,8 @@ class Jet(Vessel):
         self.vname = 'jet'
 
 class General(Vessel):
-    """A general class, includes the general shape and name for repr.\n
-    Attributes: ind, level, vshape, vname, kill.\n
+    """A general class, includes the general shape and vname for repr.
+    Attributes: ind, level, vshape, vname, kill.
     Methods: under_fire.
     """
     
@@ -95,7 +103,7 @@ class General(Vessel):
         self.vshape = np.array ([[1]], dtype=bool)
         self.vname = 'general'
 
-    def under_fire(self):
+    def under_fire(self) -> bool:
         """The game ends (signal.END) when the general is hit."""
         self.kill = True
         print('signal.END')
@@ -103,28 +111,33 @@ class General(Vessel):
     
 class Board:
     """A game board class which initiates and populates a board.\n
-    The board default dimentions are 4x4x3-levels. To change, edit __init__(dim)\n
-    The board is populated by default with a single vessel for each type. To change, edit availabe_vessels()\n
-    Attributes: rows, columns, levels, vessels, board.\n
-    Methods: available_vessels, populate_board, place_vessel.
+    The board default dimentions are 4 x4 x3-levels. To change, edit __init__(dim). \
+    Asserts 3 levels, each at least 4x4.\n
+    The board is populated by default with a single vessel for each type. \
+    To change, edit availabe_vessels().\n
+    Attributes: player_id, rows, columns, levels, vessels, board.\n
+    Methods: _available_vessels, _populate_board, _place_vessel, _validate_target, _fire.
     """
     
     def __init__(self, player_id: int = 0, dim: tuple = (4, 4, 3)):
         self.player_id = player_id
         self.rows, self.columns, self.levels = dim
         assert self.levels == 3, 'Board levels must be 3.'
-        self.vessels = self.available_vessels(available_vessels)
-        self.populate_board()
+        assert (self.rows >= 4 and self.columns >= 4), 'Board is too small for its vessels (min 4x4).'
+        self.vessels = self._available_vessels(available_vessels)
+        self._populate_board()
         
     def __str__(self):
         return (f"""{Levels(0).name}:\n{self.board[:,:,0]}
                     \n{Levels(1).name}:\n{self.board[:,:,1]}
-                    \n{Levels(2).name}:\n{self.board[:,:,2]}""")
+                    \n{Levels(2).name}:\n{self.board[:,:,2]}
+                """)
     
-    def available_vessels(self, av_ves: dict = {Submarine: 1, Destroyer: 1, Jet: 1, General: 1}) -> dict:
-        """Defines and asserts the type of vessels for a game. 
-        Asserts only one general is defined. If there are too many vessels \
-        for any other type, the func populate_board() would raise an exception.
+    def _available_vessels(self, av_ves: dict = {Submarine: 1, Destroyer: 1, Jet: 1, General: 1}) -> dict:
+        """Triggered by Board.__init__().
+        Defines and asserts the type of vessels for a game.
+        Asserts only one general is defined. If there are too many vessels of \
+        any other type, the func _populate_board() would raise an exception.
         """
         for ves in av_ves:
             try:
@@ -134,18 +147,20 @@ class Board:
         assert av_ves[General] == 1, 'More than one general is most inadvisable!'
         return av_ves
 
-    def populate_board(self):
-        """Creates a blank game board and populates it with vessels according to \
-        the definition in available_vessels(). calls place_vessel() for placement.
+    def _populate_board(self) -> None:
+        """Triggered by Board.__init__().
+        Creates a blank game board and populates it with vessels according to \
+        the definition in _available_vessels(). calls _place_vessel() for placement.
         """
         self.board = np.zeros((self.rows, self.columns, self.levels), dtype=object)
         for vessel in self.vessels:
             for ind in range(self.vessels[vessel]):
                 v = vessel(ind)
-                self.place_vessel(v)
+                self._place_vessel(v)
         
-    def place_vessel(self, v: Vessel):
-        """Chooses a random place on the board, and if it is empty, places a vessel \
+    def _place_vessel(self, v: Vessel) -> None:
+        """Triggered by Board._populate_board().
+        Chooses a random place on the board, and if it is empty, places a vessel \
         there according to the defined Vessel.vshape
         """
         trial = 0
@@ -166,32 +181,43 @@ class Board:
                 v.rotate()
             trial += 1
             ###########################################################
-            # maximal fitting vessels is a hard mathematical problem. #
+            # Maximal fitting vessels is a hard mathematical problem. #
             # Insted, if placing fails too many times, it is probably #
             # too much and an error is raised. Tested and works fine. #
             ###########################################################
             if trial > self.rows*self.columns:
-                raise Exception(f'{Levels(v.level).name} seems to be too crowded. Board is too small for so many vessels.')
+                raise Exception(
+                    f'{Levels(v.level).name} seems to be too crowded. Board is too small for so many vessels.')
 
-    def validate_target(self, player_input):
+    def _validate_target(self, player_input) -> Union[bool, str]:
+        """Recieves coordinates from main func start(). Calls _fire() and returns True \
+        if valid; prints to player and returns False if invalid.
+        Returns game_over when _fire() redults in a win condition.
+        """
         try:
             x, y, z = eval(player_input)
             try:
                 t = self.board[x,y,z]
-                if self.fire(t):
+                # Calls _fire() if coordinates are valid.
+                if self._fire(t):
+                    # Checks if a win condition is met.
                     if (t.vname == 'general') or (np.size(np.flatnonzero(self.board))==1):
                         return 'game_over'
                     self.board[x,y,z] = 0
                 return True
             except IndexError as e:
-                print('Invalid coordinates:', e)
-        except (SyntaxError, ValueError, NameError, TypeError):
-            print('Invalid coordinates.')
+                print(f'Invalid coordinates or unrecognized command. ({e})\nTry again.')
+        except (SyntaxError, ValueError, NameError, TypeError) as e:
+            print(f'Invalid coordinates or unrecognized command. ({e})\nTry again.')
         return False
 
-    def fire(self, t):
+    def _fire(self, t) -> bool:
+        """Having a valid coordinates to target from _validate_target(), fires if are'nt empty.
+        Returns True when the vessel is destroyed.
+        """
         if t:
             if t.under_fire():
+                # Destroys the vessel if signal.KILL.
                 self.board[self.board==t] = 0
             return True
         else:
@@ -199,24 +225,36 @@ class Board:
         return False
 
 
-def start():
+def start() -> None:
+    """Main function to run a game.
+    Creates boards for 2 players and welcome them.
+    Asks for player's input, switch players after a valid target.
+    Accpets show (and hide) and quit commands.
+    """
     boards = {'Board_1': Board(player_id=1, dim=board_dim), 'Board_2': Board(player_id=2, dim=board_dim)}
     print(f"""Welcome to another game of Submarines!\n\
             \nThe shape of the board is {boards['Board_1'].board.shape}.\
-            \nYou can type 'show' to show your board, and 'quit' to exit the game prematurely.\
+            \nYou can type show to show your board (and hide to hide it), or \
+            \nquit to exit the game prematurely.\
             \nThe pieces were set (randomly), let the game begin!
             """)
     i, j = 1, 2
     cont_game = True
     while cont_game:
         player_input = input(f"Player {i}, what is the coordinate you're targeting (x, y, z)? ")
-        if player_input == 'show':
+        if str.lower(player_input) == 'show':
+        ##################################################################################
+        # I tried to use eval() in order to accept 'show' (and not only show), but that  #
+        # evaluate quit as Quitter and raises Exception. Probably can find a workaround. #
+        ##################################################################################
             print(boards[f'Board_{i}'])
-        elif player_input == 'quit':
+        elif str.lower(player_input) == 'hide':
+            print('\n' *15)
+        elif str.lower(player_input) == 'quit':
             print('quiting...')
             cont_game = False
         else:
-            target = boards[f'Board_{j}'].validate_target(player_input)
+            target = boards[f'Board_{j}']._validate_target(player_input)
             if target:
                 if target == 'game_over':
                     print(f'The game is over! Thw winner is Player {i}')
